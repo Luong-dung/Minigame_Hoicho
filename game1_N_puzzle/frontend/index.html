@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Sliding Puzzle</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; color: #f5f7ff;
+      background: radial-gradient(circle at top, #243b68, #101523 65%);
+    }
+    main { width: min(1100px, 94vw); margin: auto; padding: 28px 0 42px; }
+    h1 { margin: 0 0 6px; font-size: clamp(1.8rem, 4vw, 2.8rem); }
+    .subtitle { margin: 0 0 22px; color: #bbc7e6; }
+    .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 24px; align-items: start; }
+    .panel, .game-card {
+      border: 1px solid #3e527e; border-radius: 18px; background: #17223aee;
+      box-shadow: 0 14px 35px #0004;
+    }
+    .panel { padding: 18px; }
+    label { display: block; margin: 0 0 7px; color: #cbd5f5; font-size: .9rem; }
+    select, button {
+      width: 100%; border: 1px solid #526a9e; border-radius: 9px; padding: 10px;
+      background: #202e4b; color: inherit; font: inherit; cursor: pointer;
+    }
+    select { margin-bottom: 15px; }
+    button { background: #5b6ee1; border: 0; font-weight: 700; }
+    button:hover { background: #7484f0; }
+    button.secondary { margin-top: 9px; background: #293957; }
+    button.random { margin-top: 9px; background: #3d5f91; }
+    .stats { display: flex; justify-content: space-between; margin: 20px 0 0; color: #bdc9e9; }
+    .stats strong { display: block; color: white; font-size: 1.15rem; }
+    .game-card { padding: clamp(12px, 3vw, 24px); }
+    #message { min-height: 25px; margin: 0 0 12px; color: #cbd5f5; }
+    #message.success { color: #76e6ae; font-weight: 700; }
+    #board {
+      --board-ratio: 1;
+      display: grid; width: min(100%, 760px); margin: auto; overflow: hidden;
+      aspect-ratio: var(--board-ratio); border: 3px solid #8296d7; border-radius: 12px;
+      background: #0b1120; gap: 2px;
+    }
+    .board-area { position: relative; }
+    .hint-button {
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+      width: auto; padding: 7px 9px; font-size: .8rem;
+      background: #293957;
+    }
+    .hint-button:hover { background: #3b4d72; }
+    .hint-preview {
+      display: none; position: absolute; top: 52px; right: 10px; z-index: 3;
+      width: min(260px, 60%); border: 1px solid #526a9e; border-radius: 8px;
+      overflow: hidden; background: #0b1120; box-shadow: 0 8px 24px #0008;
+    }
+    .hint-preview.visible { display: block; }
+    .hint-preview img { display: block; width: 100%; height: auto; }
+    .tile { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
+      background: #243250; overflow: hidden; transition: transform .12s, filter .12s; }
+    .tile:not(.empty):hover { filter: brightness(1.18); }
+    .tile img { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+    .tile.empty { background: #090e1b; cursor: default; }
+    .hint { margin: 12px 0 0; text-align: center; color: #9eadd0; font-size: .85rem; }
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: 1fr; }
+      .panel { order: 2; }
+      .game-card { order: 1; }
+      .hint-preview { width: min(220px, 70%); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Image Sliding Puzzle</h1>
+  <p class="subtitle">Chọn ảnh, rồi đưa các mảnh về đúng vị trí bằng cách di chuyển ô trống.</p>
+  <div class="layout">
+    <aside class="panel">
+      <label for="imageSelect">Ảnh</label>
+      <select id="imageSelect" aria-label="Chọn ảnh"></select>
+      <label for="difficulty">Độ khó (hàng × cột)</label>
+      <select id="difficulty">
+        <option value="3x3">3 × 3</option>
+        <option value="3x4">3 × 4</option>
+        <option value="4x4">4 × 4</option>
+        <option value="4x5">4 × 5</option>
+        <option value="5x5">5 × 5</option>
+      </select>
+      <button id="newGame">Trộn ảnh mới</button>
+      <button class="random" id="randomImage">Ảnh ngẫu nhiên</button>
+      <button class="secondary" id="solve">Xem đáp án</button>
+      <button class="secondary" id="surrender">Đầu hàng</button>
+      <div class="stats">
+        <div><small>Nước đi</small><strong id="moves">0</strong></div>
+        <div><small>Thời gian</small><strong id="timer">00:00</strong></div>
+      </div>
+    </aside>
+    <section class="game-card">
+      <p id="message">Đang tải danh sách ảnh…</p>
+      <div class="board-area">
+        <div id="board" aria-label="Bàn chơi xếp hình"></div>
+        <button class="hint-button" id="showHint" type="button" aria-label="Xem gợi ý ảnh">Gợi ý (còn 3)</button>
+        <div class="hint-preview" id="hintPreview" aria-hidden="true">
+          <img id="hintImage" alt="Ảnh gốc của màn chơi">
+        </div>
+      </div>
+      <p class="hint">Bạn cũng có thể dùng các phím mũi tên để di chuyển ô trống.</p>
+    </section>
+  </div>
+</main>
+<script>
+const imageSelect = document.querySelector("#imageSelect");
+const difficulty = document.querySelector("#difficulty");
+const board = document.querySelector("#board");
+const message = document.querySelector("#message");
+const movesLabel = document.querySelector("#moves");
+const timerLabel = document.querySelector("#timer");
+const hintButton = document.querySelector("#showHint");
+const hintPreview = document.querySelector("#hintPreview");
+const hintImage = document.querySelector("#hintImage");
+let imageUrls = [], image = new Image(), rows = 3, cols = 3;
+let tiles = [], moves = 0, startedAt = 0, timerId = null, hintTimerId = null;
+let hintsRemaining = 3, finished = false;
+
+function setMessage(text, success = false) {
+  message.textContent = text;
+  message.classList.toggle("success", success);
+}
+
+function formatTime(seconds) {
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function stopTimer() {
+  if (timerId !== null) window.clearInterval(timerId);
+  timerId = null;
+}
+
+function hideHint() {
+  if (hintTimerId !== null) window.clearTimeout(hintTimerId);
+  hintTimerId = null;
+  hintPreview.classList.remove("visible");
+  hintPreview.setAttribute("aria-hidden", "true");
+}
+
+function showHint() {
+  if (!image.naturalWidth || finished || hintsRemaining === 0) return;
+  if (hintTimerId !== null) window.clearTimeout(hintTimerId);
+  hintsRemaining--;
+  hintButton.textContent = `Gợi ý (còn ${hintsRemaining})`;
+  hintButton.disabled = hintsRemaining === 0;
+  hintImage.src = image.src;
+  hintPreview.classList.add("visible");
+  hintPreview.setAttribute("aria-hidden", "false");
+  hintTimerId = window.setTimeout(hideHint, 3000);
+}
+
+function startTimer() {
+  stopTimer();
+  startedAt = Date.now();
+  timerId = window.setInterval(() => {
+    timerLabel.textContent = formatTime(Math.floor((Date.now() - startedAt) / 1000));
+  }, 250);
+}
+
+function neighbours(index) {
+  const result = [];
+  const row = Math.floor(index / cols), col = index % cols;
+  if (row > 0) result.push(index - cols);
+  if (row < rows - 1) result.push(index + cols);
+  if (col > 0) result.push(index - 1);
+  if (col < cols - 1) result.push(index + 1);
+  return result;
+}
+
+function shuffle() {
+  // Legal moves from the solved board preserve solvability for every grid shape.
+  const blank = () => tiles.indexOf(tiles.length - 1);
+  let previous = -1;
+  for (let i = 0; i < rows * cols * 18; i++) {
+    const options = neighbours(blank()).filter(index => index !== previous);
+    const selected = options[Math.floor(Math.random() * options.length)];
+    const emptyIndex = blank();
+    [tiles[selected], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[selected]];
+    previous = emptyIndex;
+  }
+  if (tiles.every((tile, index) => tile === index)) shuffle();
+}
+
+function cropTiles() {
+  const canvas = document.createElement("canvas");
+  const width = 900, height = Math.max(1, Math.round(width * image.naturalHeight / image.naturalWidth));
+  canvas.width = width; canvas.height = height;
+  canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+  const pieces = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (row === rows - 1 && col === cols - 1) {
+        pieces.push(null);
+        continue;
+      }
+      const piece = document.createElement("canvas");
+      piece.width = Math.ceil(width / cols);
+      piece.height = Math.ceil(height / rows);
+      piece.getContext("2d").drawImage(
+        canvas, Math.floor(col * width / cols), Math.floor(row * height / rows),
+        Math.ceil(width / cols), Math.ceil(height / rows), 0, 0, piece.width, piece.height
+      );
+      pieces.push(piece.toDataURL("image/jpeg", .9));
+    }
+  }
+  return { pieces, ratio: width / height };
+}
+
+function render() {
+  board.innerHTML = "";
+  board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  board.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  board.style.setProperty("--board-ratio", image.naturalWidth / image.naturalHeight);
+  const { pieces } = cropTiles();
+  tiles.forEach((tile, index) => {
+    const button = document.createElement("button");
+    button.className = `tile${tile === tiles.length - 1 ? " empty" : ""}`;
+    button.setAttribute("aria-label", tile === tiles.length - 1 ? "Ô trống" : `Mảnh ${tile + 1}`);
+    if (tile !== tiles.length - 1) {
+      const tileImage = document.createElement("img");
+      tileImage.src = pieces[tile];
+      tileImage.alt = "";
+      button.append(tileImage);
+      button.addEventListener("click", () => move(index));
+    }
+    board.append(button);
+  });
+}
+
+function move(index) {
+  if (finished) return;
+  const emptyIndex = tiles.indexOf(tiles.length - 1);
+  if (!neighbours(emptyIndex).includes(index)) return;
+  [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
+  moves++;
+  movesLabel.textContent = moves;
+  render();
+  if (tiles.every((tile, position) => tile === position)) {
+    finished = true; stopTimer();
+    setMessage(`Hoàn thành trong ${moves} nước đi và ${formatTime(Math.floor((Date.now() - startedAt) / 1000))}!`, true);
+  }
+}
+
+function newGame() {
+  hideHint();
+  const [newRows, newCols] = difficulty.value.split("x").map(Number);
+  rows = newRows; cols = newCols; moves = 0; hintsRemaining = 3; finished = false;
+  movesLabel.textContent = "0"; timerLabel.textContent = "00:00";
+  hintButton.textContent = "Gợi ý (còn 3)";
+  hintButton.disabled = false;
+  tiles = Array.from({ length: rows * cols }, (_, index) => index);
+  shuffle(); render(); startTimer();
+  setMessage("Đưa ảnh về đúng thứ tự ban đầu.");
+}
+
+function loadSelectedImage() {
+  if (!imageSelect.value) return;
+  image = new Image();
+  image.onload = newGame;
+  image.onerror = () => setMessage("Không thể đọc ảnh đã chọn.");
+  image.src = imageSelect.value;
+}
+
+document.querySelector("#newGame").addEventListener("click", loadSelectedImage);
+document.querySelector("#randomImage").addEventListener("click", () => {
+  if (!imageUrls.length) return;
+  let randomIndex = Math.floor(Math.random() * imageUrls.length);
+  if (imageUrls.length > 1 && imageUrls[randomIndex] === imageSelect.value) {
+    randomIndex = (randomIndex + 1) % imageUrls.length;
+  }
+  imageSelect.value = imageUrls[randomIndex];
+  loadSelectedImage();
+});
+document.querySelector("#showHint").addEventListener("click", showHint);
+document.querySelector("#surrender").addEventListener("click", () => {
+  if (!image.naturalWidth || finished) return;
+  hideHint();
+  tiles = Array.from({ length: rows * cols }, (_, index) => index);
+  finished = true;
+  stopTimer();
+  render();
+  setMessage("Bạn đã đầu hàng. Đây là đáp án của ảnh.");
+});
+document.querySelector("#solve").addEventListener("click", () => {
+  if (!image.naturalWidth) return;
+  tiles = Array.from({ length: rows * cols }, (_, index) => index);
+  moves = 0; movesLabel.textContent = "0"; finished = true; stopTimer(); render();
+  setMessage("Đây là đáp án của ảnh.", true);
+});
+imageSelect.addEventListener("change", loadSelectedImage);
+difficulty.addEventListener("change", loadSelectedImage);
+document.addEventListener("keydown", event => {
+  if (finished) return;
+  const empty = tiles.indexOf(tiles.length - 1), row = Math.floor(empty / cols), col = empty % cols;
+  const target = { ArrowUp: empty + cols, ArrowDown: empty - cols, ArrowLeft: empty + 1, ArrowRight: empty - 1 }[event.key];
+  if (target !== undefined && target >= 0 && target < tiles.length && Math.abs(Math.floor(target / cols) - row) + Math.abs(target % cols - col) === 1) {
+    event.preventDefault(); move(target);
+  }
+});
+
+fetch("/api/images")
+  .then(response => { if (!response.ok) throw new Error("API error"); return response.json(); })
+  .then(images => {
+    imageUrls = images;
+    imageSelect.replaceChildren(...images.map(url => {
+      const option = new Option(url.split("/").pop(), url);
+      return option;
+    }));
+    if (!images.length) throw new Error("Không tìm thấy ảnh trong thư mục image.");
+    loadSelectedImage();
+  })
+  .catch(error => setMessage(error.message));
+</script>
+</body>
+</html>
