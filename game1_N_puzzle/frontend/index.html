@@ -35,6 +35,10 @@
     .game-card { padding: clamp(12px, 3vw, 24px); }
     #message { min-height: 25px; margin: 0 0 12px; color: #cbd5f5; }
     #message.success { color: #76e6ae; font-weight: 700; }
+    #message.surrendered {
+      color: #ffd166; font-size: clamp(1.4rem, 4vw, 2.4rem);
+      font-weight: 800; text-align: center;
+    }
     #board {
       --board-ratio: 1;
       display: grid; width: min(100%, 760px); margin: auto; overflow: hidden;
@@ -59,7 +63,20 @@
       background: #243250; overflow: hidden; transition: transform .12s, filter .12s; }
     .tile:not(.empty):hover { filter: brightness(1.18); }
     .tile img { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
-    .tile.empty { background: #090e1b; cursor: default; }
+    .tile.empty {
+      position: relative; display: grid; place-items: center;
+      background: repeating-linear-gradient(
+        135deg, #101a30 0, #101a30 8px, #182744 8px, #182744 16px
+      );
+      box-shadow: inset 0 0 0 3px #8296d7;
+      cursor: default;
+    }
+    .tile.empty::after {
+      content: "Ô TRỐNG"; padding: 5px 8px; border: 1px solid #aebcf0;
+      border-radius: 5px; background: #090e1bcc; color: #e5eaff;
+      font-size: clamp(.55rem, 1.5vw, .8rem); font-weight: 800;
+      letter-spacing: .04em; text-align: center; text-shadow: 0 1px 2px #000;
+    }
     .hint { margin: 12px 0 0; text-align: center; color: #9eadd0; font-size: .85rem; }
     @media (max-width: 720px) {
       .layout { grid-template-columns: 1fr; }
@@ -77,17 +94,15 @@
     <aside class="panel">
       <label for="imageSelect">Ảnh</label>
       <select id="imageSelect" aria-label="Chọn ảnh"></select>
-      <label for="difficulty">Độ khó (hàng × cột)</label>
+      <label for="difficulty">Độ khó</label>
       <select id="difficulty">
-        <option value="3x3">3 × 3</option>
-        <option value="3x4">3 × 4</option>
-        <option value="4x4">4 × 4</option>
-        <option value="4x5">4 × 5</option>
-        <option value="5x5">5 × 5</option>
+        <option value="easy">Dễ</option>
+        <option value="medium">Trung bình</option>
+        <option value="hard">Khó</option>
+        <option value="very-hard">Rất khó</option>
       </select>
       <button id="newGame">Trộn ảnh mới</button>
       <button class="random" id="randomImage">Ảnh ngẫu nhiên</button>
-      <button class="secondary" id="solve">Xem đáp án</button>
       <button class="secondary" id="surrender">Đầu hàng</button>
       <div class="stats">
         <div><small>Nước đi</small><strong id="moves">0</strong></div>
@@ -120,10 +135,25 @@ const hintImage = document.querySelector("#hintImage");
 let imageUrls = [], image = new Image(), rows = 3, cols = 3;
 let tiles = [], moves = 0, startedAt = 0, timerId = null, hintTimerId = null;
 let hintsRemaining = 3, finished = false;
+const difficultyGroups = {
+  easy: ["3x3"],
+  medium: ["3x4"],
+  hard: ["4x4"],
+  "very-hard": ["4x5", "5x5"]
+};
+let validDifficulties = new Map(), lastDifficulty = difficulty.value;
+let currentSize = "3x3";
 
 function setMessage(text, success = false) {
   message.textContent = text;
   message.classList.toggle("success", success);
+  message.classList.remove("surrendered");
+}
+
+function setSurrenderMessage() {
+  message.textContent = "ĐÃ ĐẦU HÀNG";
+  message.classList.remove("success");
+  message.classList.add("surrendered");
 }
 
 function formatTime(seconds) {
@@ -211,6 +241,25 @@ function cropTiles() {
   return { pieces, ratio: width / height };
 }
 
+function updateDifficultyAvailability(imageName) {
+  const blockedDifficulties = new Set(validationMap[imageName] || []);
+  for (const option of difficulty.options) {
+    const availableSizes = difficultyGroups[option.value].filter(size => !blockedDifficulties.has(size));
+    const blocked = availableSizes.length === 0;
+    validDifficulties.set(option.value, !blocked);
+    option.disabled = blocked;
+    option.title = blocked ? "Ảnh không có kích thước hợp lệ ở mức này." : "";
+  }
+}
+
+function selectSizeForDifficulty(level) {
+  const blockedSizes = new Set(validationMap[imageSelect.value.split("/").pop()] || []);
+  const availableSizes = difficultyGroups[level].filter(size => !blockedSizes.has(size));
+  if (!availableSizes.length) return false;
+  currentSize = availableSizes[Math.floor(Math.random() * availableSizes.length)];
+  return true;
+}
+
 function render() {
   board.innerHTML = "";
   board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
@@ -248,7 +297,7 @@ function move(index) {
 
 function newGame() {
   hideHint();
-  const [newRows, newCols] = difficulty.value.split("x").map(Number);
+  const [newRows, newCols] = currentSize.split("x").map(Number);
   rows = newRows; cols = newCols; moves = 0; hintsRemaining = 3; finished = false;
   movesLabel.textContent = "0"; timerLabel.textContent = "00:00";
   hintButton.textContent = "Gợi ý (còn 3)";
@@ -261,7 +310,20 @@ function newGame() {
 function loadSelectedImage() {
   if (!imageSelect.value) return;
   image = new Image();
-  image.onload = newGame;
+  image.onload = () => {
+    updateDifficultyAvailability(imageSelect.value.split("/").pop());
+    if (!validDifficulties.get(difficulty.value)) {
+      const available = [...difficulty.options].find(option => !option.disabled);
+      if (!available) {
+        setMessage("Ảnh này không có kích thước nào đủ khác biệt để chơi.");
+        return;
+      }
+      difficulty.value = available.value;
+    }
+    selectSizeForDifficulty(difficulty.value);
+    lastDifficulty = difficulty.value;
+    newGame();
+  };
   image.onerror = () => setMessage("Không thể đọc ảnh đã chọn.");
   image.src = imageSelect.value;
 }
@@ -284,29 +346,43 @@ document.querySelector("#surrender").addEventListener("click", () => {
   finished = true;
   stopTimer();
   render();
-  setMessage("Bạn đã đầu hàng. Đây là đáp án của ảnh.");
-});
-document.querySelector("#solve").addEventListener("click", () => {
-  if (!image.naturalWidth) return;
-  tiles = Array.from({ length: rows * cols }, (_, index) => index);
-  moves = 0; movesLabel.textContent = "0"; finished = true; stopTimer(); render();
-  setMessage("Đây là đáp án của ảnh.", true);
+  setSurrenderMessage();
 });
 imageSelect.addEventListener("change", loadSelectedImage);
-difficulty.addEventListener("change", loadSelectedImage);
+difficulty.addEventListener("change", () => {
+  if (!validDifficulties.get(difficulty.value)) {
+    difficulty.value = lastDifficulty;
+    setMessage("Kích thước này có hai mảnh quá giống nhau với ảnh hiện tại.");
+    return;
+  }
+  lastDifficulty = difficulty.value;
+  selectSizeForDifficulty(difficulty.value);
+  newGame();
+});
 document.addEventListener("keydown", event => {
   if (finished) return;
   const empty = tiles.indexOf(tiles.length - 1), row = Math.floor(empty / cols), col = empty % cols;
-  const target = { ArrowUp: empty + cols, ArrowDown: empty - cols, ArrowLeft: empty + 1, ArrowRight: empty - 1 }[event.key];
+  const target = {
+    ArrowUp: empty - cols,
+    ArrowDown: empty + cols,
+    ArrowLeft: empty - 1,
+    ArrowRight: empty + 1
+  }[event.key];
   if (target !== undefined && target >= 0 && target < tiles.length && Math.abs(Math.floor(target / cols) - row) + Math.abs(target % cols - col) === 1) {
     event.preventDefault(); move(target);
   }
 });
 
-fetch("/api/images")
-  .then(response => { if (!response.ok) throw new Error("API error"); return response.json(); })
-  .then(images => {
+let validationMap = {};
+
+Promise.all([fetch("/api/images"), fetch("/api/validation")])
+  .then(async ([imagesResponse, validationResponse]) => {
+    if (!imagesResponse.ok || !validationResponse.ok) throw new Error("Không thể tải dữ liệu ảnh.");
+    return [await imagesResponse.json(), await validationResponse.json()];
+  })
+  .then(([images, validation]) => {
     imageUrls = images;
+    validationMap = validation;
     imageSelect.replaceChildren(...images.map(url => {
       const option = new Option(url.split("/").pop(), url);
       return option;

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bắt chuột dưới cốc</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", sans-serif;
+      color: #33251b;
+      background: #fff7e8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      display: grid;
+      min-height: 100vh;
+      margin: 0;
+      place-items: center;
+      padding: 24px;
+      background: radial-gradient(circle at top, #fffdf6, #ffe7bb);
+    }
+    main {
+      width: min(760px, 100%);
+      padding: clamp(24px, 5vw, 48px);
+      text-align: center;
+      background: #fff;
+      border: 1px solid #f1d49e;
+      border-radius: 28px;
+      box-shadow: 0 18px 50px #9b681d22;
+    }
+    h1 { margin: 0 0 8px; font-size: clamp(2rem, 6vw, 3.4rem); }
+    .subtitle { margin: 0 auto 28px; color: #765d46; font-size: 1.05rem; }
+    .stats { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 26px; }
+    .stat { min-width: 130px; padding: 10px 16px; background: #fff4d9; border-radius: 14px; }
+    .stat strong { display: block; font-size: 1.4rem; color: #bd5e16; }
+    .mode-picker { margin: 0 auto 20px; }
+    .mode-picker label { display: block; margin-bottom: 8px; font-weight: 700; }
+    .mode-picker select { margin-bottom: 12px; padding: 9px 12px; border: 1px solid #e0b875; border-radius: 10px; font: inherit; }
+    .cups {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: clamp(4px, 1.6vw, 24px);
+      margin: 24px 0;
+      --count: 6;
+    }
+    .cup {
+      position: relative;
+      flex: 0 1 145px;
+      min-width: 0;
+      aspect-ratio: .9;
+      border: 0;
+      border-radius: 48% 48% 42% 42%;
+      cursor: pointer;
+      background: linear-gradient(105deg, #dc6b2f 5%, #f89943 45%, #c44c22 100%);
+      box-shadow: inset -10px -12px 0 #9f351b44, 0 10px 0 #be692e;
+      transition: transform .18s, filter .18s;
+    }
+    .cup::before {
+      content: "";
+      position: absolute;
+      left: -5%;
+      top: -9%;
+      width: 110%;
+      height: 25%;
+      border-radius: 50%;
+      background: #ffbd64;
+      box-shadow: inset 0 -6px 0 #a9481f66;
+    }
+    .cup:hover:not(:disabled) { transform: translateY(-8px); filter: brightness(1.08); }
+    .cup:disabled { cursor: default; }
+    .cup.opened { transform: translateY(-22px); filter: brightness(1.1); }
+    .cup .mouse {
+      display: none;
+      position: absolute;
+      inset: 22% 0 auto;
+      font-size: calc(min(100vw, 760px) * .6 / var(--count));
+      line-height: 1;
+    }
+    .cup.show-mouse .mouse { display: block; }
+    .cup.show-mouse { background: #f4b05f; }
+    #message {
+      min-height: 30px;
+      margin: 18px 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #8d4a22;
+    }
+    #message.success { color: #18804b; }
+    #message.error { color: #b52d2d; }
+    #message.lose { color: #a34b20; }
+    button.new-game {
+      padding: 12px 24px;
+      border: 0;
+      border-radius: 12px;
+      color: #fff;
+      background: #23764f;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.new-game:hover { background: #185e3e; }
+    .hint { margin-top: 22px; color: #8a7159; font-size: .92rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🐭 Bắt chuột dưới cốc</h1>
+    <p class="subtitle">Chọn một chiếc cốc để bắt chuột. Nếu trượt, chuột sẽ chạy sang một ô bên cạnh!</p>
+    <section class="stats" aria-label="Thông tin ván chơi">
+      <div class="stat">Lượt mở <strong id="moves">0</strong></div>
+      <div class="stat">Số cốc <strong id="cup-count">0</strong></div>
+      <div class="stat">Tối đa <strong id="max-moves">0</strong></div>
+    </section>
+    <div class="mode-picker">
+      <label for="cup-count-choice">Số cốc</label>
+      <select id="cup-count-choice">
+        <option value="3">3 cốc</option>
+        <option value="4">4 cốc</option>
+        <option value="5">5 cốc</option>
+        <option value="6" selected>6 cốc</option>
+        <option value="7">7 cốc</option>
+        <option value="8">8 cốc</option>
+        <option value="9">9 cốc</option>
+        <option value="10">10 cốc</option>
+        <option value="11">11 cốc</option>
+        <option value="12">12 cốc</option>
+      </select>
+      <label for="mode">Chế độ chuột</label>
+      <select id="mode">
+        <option value="random">Thường: chuột chạy ngẫu nhiên</option>
+        <option value="smart">Ronaldo hay Messi: chuột thông minh</option>
+      </select>
+    </div>
+    <section id="cups" class="cups" aria-label="Các chiếc cốc"></section>
+    <p id="message" role="status">Chuột đang trốn. Bạn chọn cốc nào?</p>
+    <button class="new-game" type="button" id="new-game">🔄 Chơi ván mới</button>
+    <p class="hint">Logic di chuyển của chuột được xử lý bằng Python.</p>
+  </main>
+  <script>
+    const cupsElement = document.querySelector("#cups");
+    const movesElement = document.querySelector("#moves");
+    const cupCountElement = document.querySelector("#cup-count");
+    const maxMovesElement = document.querySelector("#max-moves");
+    const modeElement = document.querySelector("#mode");
+    const cupCountChoiceElement = document.querySelector("#cup-count-choice");
+    const messageElement = document.querySelector("#message");
+    const newGameButton = document.querySelector("#new-game");
+
+    let cupCount = 0;   // số cốc của ván hiện tại
+    let epoch = 0;      // tăng mỗi khi bắt đầu ván mới, để bỏ qua phản hồi cũ
+    let busy = false;   // đang chờ server trả lời một lượt mở cốc
+
+    function renderCups(count, openedCup = null, mousePosition = null, finished = false) {
+      cupsElement.style.setProperty("--count", count);
+      cupsElement.replaceChildren();
+      for (let index = 0; index < count; index += 1) {
+        const button = document.createElement("button");
+        button.className = "cup";
+        button.type = "button";
+        button.setAttribute("aria-label", `Mở cốc ${index + 1}`);
+        if (index === openedCup) button.classList.add("opened");
+        if (index === mousePosition) button.classList.add("show-mouse");
+        button.disabled = finished;
+        button.innerHTML = '<span class="mouse" aria-hidden="true">🐭</span>';
+        button.addEventListener("click", () => openCup(index));
+        cupsElement.append(button);
+      }
+    }
+
+    function showMessage(text, kind = "") {
+      messageElement.textContent = text;
+      messageElement.className = kind;
+    }
+
+    async function readJson(url, options = {}) {
+      const response = await fetch(url, options);
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        // phản hồi không phải JSON
+      }
+      if (!response.ok) throw new Error(data.error || "Không thể kết nối máy chủ.");
+      return data;
+    }
+
+    async function openCup(cup) {
+      if (busy) return;
+      busy = true;
+      const myEpoch = epoch;
+      try {
+        const result = await readJson("/api/open", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({cup})
+        });
+        if (myEpoch !== epoch) return; // ván đã bị reset trong lúc chờ
+        movesElement.textContent = result.moves;
+        if (result.finished) {
+          renderCups(cupCount, result.opened_cup, result.mouse_position, true);
+          showMessage(result.message, result.won ? "success" : "lose");
+        } else {
+          renderCups(cupCount, result.opened_cup);
+          showMessage(result.message);
+        }
+      } catch (error) {
+        if (myEpoch === epoch) showMessage(error.message, "error");
+      } finally {
+        busy = false;
+      }
+    }
+
+    async function startNewGame() {
+      epoch += 1;
+      const myEpoch = epoch;
+      busy = false;
+      try {
+        const state = await readJson("/api/new-game", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            mode: modeElement.value,
+            cup_count: Number(cupCountChoiceElement.value)
+          })
+        });
+        if (myEpoch !== epoch) return;
+        cupCount = state.cup_count;
+        movesElement.textContent = state.moves;
+        cupCountElement.textContent = state.cup_count;
+        maxMovesElement.textContent = state.max_moves;
+        renderCups(state.cup_count);
+        showMessage("Chuột đang trốn. Bạn chọn cốc nào?");
+      } catch (error) {
+        if (myEpoch === epoch) showMessage(error.message, "error");
+      }
+    }
+
+    newGameButton.addEventListener("click", startNewGame);
+    modeElement.addEventListener("change", startNewGame);
+    cupCountChoiceElement.addEventListener("change", startNewGame);
+    startNewGame();
+  </script>
+</body>
+</html>

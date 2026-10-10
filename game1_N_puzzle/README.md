@@ -10,7 +10,9 @@ khác nhau.
 - Python 3.9 trở lên
 - Trình duyệt hiện đại có hỗ trợ JavaScript và Canvas
 
-Chương trình chỉ sử dụng thư viện chuẩn của Python, không cần cài thêm package.
+Ảnh PNG được quét trước bằng thư viện chuẩn của Python khi server khởi động.
+Các file JPEG cần dùng đúng định dạng JPEG; nếu chỉ đổi đuôi thành `.png` thì
+server vẫn phục vụ ảnh nhưng không thể quét trước các mảnh của file đó.
 
 ## Chạy chương trình
 
@@ -38,13 +40,14 @@ tải lại trang. Không cần sửa mã nguồn.
 
 ## Cách chơi
 
-- Chọn ảnh và độ khó: `3x3`, `3x4`, `4x4`, `4x5` hoặc `5x5`.
+- Chọn ảnh và độ khó: **Dễ** (`3×3`), **Trung bình** (`3×4`), **Khó** (`4×4`) hoặc **Rất khó** (`4×5`/`5×5`). Ở mức **Rất khó**, game tự chọn một kích thước hợp lệ.
 - Bấm **Ảnh ngẫu nhiên** để chuyển sang một ảnh khác trong danh sách.
 - Bấm vào mảnh ảnh cạnh ô trống để di chuyển.
-- Có thể dùng các phím mũi tên.
+- Ô trống có nền sọc và nhãn **Ô TRỐNG**, nên vẫn dễ nhận biết khi ảnh có phông trắng.
+- Khi server khởi động, chương trình quét trước toàn bộ cặp mảnh của từng ảnh và kích thước. Frontend nhận danh sách này và khóa sẵn mức độ không hợp lệ; mức **Rất khó** tự chọn `4×5` hoặc `5×5` nếu kích thước đó hợp lệ.
+- Có thể dùng các phím mũi tên để di chuyển ô trống theo đúng hướng mũi tên.
 - Bấm **Gợi ý** để xem ảnh gốc trong 3 giây; mỗi ván được tối đa 3 lần.
 - Nút **Trộn ảnh mới** bắt đầu ván mới.
-- Nút **Xem đáp án** đưa bàn chơi về trạng thái hoàn chỉnh.
 - Nút **Đầu hàng** kết thúc ván và hiển thị đáp án.
 - Thống kê số nước đi và thời gian được hiển thị ở bảng điều khiển.
 
