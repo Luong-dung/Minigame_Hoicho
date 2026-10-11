@@ -15,14 +15,14 @@ test('3x3 boards match independently calculated optimal distances', () => {
       if (!distances.has(key)) { distances.set(key, depth + 1); queue.push(key); }
     }
   }
-  for (const level of ['easy', 'medium', 'blackout']) for (let i = 0; i < 100; i++) {
+  for (const level of ['easy', 'medium']) for (let i = 0; i < 100; i++) {
     const depth = distances.get(Puzzle.create(level).join(''));
     assert.ok(depth >= Puzzle.levels[level].min && depth <= Puzzle.levels[level].max);
   }
 });
 
 test('large boards have valid permutations, solvable parity and minimum displacement', () => {
-  for (const level of ['hard', 'very-hard']) for (let i = 0; i < 100; i++) {
+  for (const level of ['hard', 'very-hard', 'blackout']) for (let i = 0; i < 100; i++) {
     const config = Puzzle.levels[level], tiles = Puzzle.create(level);
     assert.deepEqual([...tiles].sort((a, b) => a - b), Puzzle.solved(config.rows, config.cols));
     let inversions = 0;

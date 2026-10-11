@@ -84,14 +84,15 @@ test('blackout memorizes the shuffled board, then hides identities and allows th
   const app = setup(); app.images[0].onload();
   app.run('difficulty.value = "blackout"; prepare(); start();');
   assert.equal(app.run('phase'), 'memorizing');
-  app.run('move(Puzzle.neighbours(tiles.indexOf(8), 3, 3)[0]);');
+  app.run('move(Puzzle.neighbours(tiles.indexOf(15), 4, 4)[0]);');
   assert.equal(app.run('moves'), 0);
   const original = app.run('tiles.join(",")');
   app.setTime(10000); app.run('tick();');
   assert.equal(app.run('phase'), 'playing');
   assert.equal(app.run('tiles.join(",")'), original);
   const covered = () => app.elements.get('board').children.filter(button => button.className.includes('covered'));
-  assert.equal(covered().length, 8);
+  assert.equal(app.elements.get('board').children.length, 16);
+  assert.equal(covered().length, 15);
   assert.ok(covered().every(button => button.children.length === 0));
   for (let i = 0; i < 3; i++) {
     app.elements.get('showHint').listeners.click();
@@ -100,12 +101,12 @@ test('blackout memorizes the shuffled board, then hides identities and allows th
     app.elements.get('showHint').listeners.click();
     assert.equal(app.run('hintsRemaining'), remaining);
     app.setTime(12000 + i * 2000); app.run('tick();');
-    assert.equal(covered().length, 8);
+    assert.equal(covered().length, 15);
   }
   assert.equal(app.run('hintsRemaining'), 0);
   assert.equal(app.elements.get('showHint').disabled, true);
   app.elements.get('showHint').listeners.click();
-  assert.equal(covered().length, 8);
+  assert.equal(covered().length, 15);
 });
 
 test('blackout elapsed time survives a skipped memory phase and restart resets lights', () => {

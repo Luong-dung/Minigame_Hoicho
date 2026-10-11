@@ -2,10 +2,10 @@
 const Puzzle = (() => {
   const levels = {
     easy: { rows: 3, cols: 3, seconds: 60, min: 6, max: 10 },
-    medium: { rows: 3, cols: 3, seconds: 90, min: 14, max: 18 },
-    hard: { rows: 3, cols: 4, seconds: 120, steps: 30, min: 12 },
-    "very-hard": { rows: 4, cols: 4, seconds: 180, steps: 50, min: 20 },
-    blackout: { rows: 3, cols: 3, seconds: 90, min: 6, max: 10, memorySeconds: 10, lightSeconds: 2 }
+    medium: { rows: 3, cols: 3, seconds: 30, min: 14, max: 18 },
+    hard: { rows: 3, cols: 4, seconds: 90, steps: 30, min: 12 },
+    "very-hard": { rows: 4, cols: 4, seconds: 120, steps: 50, min: 20 },
+    blackout: { rows: 4, cols: 4, seconds: 90, min: 6, steps: 10, memorySeconds: 10, lightSeconds: 2 }
   };
   const solved = (rows, cols) => Array.from({ length: rows * cols }, (_, i) => i);
   function neighbours(index, rows, cols) {

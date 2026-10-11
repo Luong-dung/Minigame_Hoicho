@@ -13,8 +13,9 @@ Số cốc và số lượt do server quyết định.
 | 2 | Chuột thông minh | 8 | Né khi còn đường thoát, đi 1 ô | 12 |
 | 3 | Chuột trùm | 8 | Né, đi theo chu kỳ 1 → 2 ô | 13 |
 | 4 | Chuột siêu trùm | 8 | Né, đi theo chu kỳ 1 → 2 → 3 ô | 14 |
+| 5 (đặc biệt) | Chuột đào tẩu | 7 | Người chơi làm chuột, chạy 1 ô sau mỗi lần máy mở trượt | 10 lần săn |
 
-## Luật chơi
+## Luật chơi các bậc 1–4
 
 - Cốc được đánh số từ trái sang phải, bắt đầu từ 1.
 - Người chơi mở một cốc mỗi lượt. Chuột chỉ di chuyển nếu mở trượt và ván còn lượt.
