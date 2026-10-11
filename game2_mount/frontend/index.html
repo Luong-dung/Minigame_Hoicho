@@ -80,6 +80,8 @@
     }
     .cup.show-mouse .mouse { display: block; }
     .cup.show-mouse { background: #f4b05f; }
+    .cup-number { position: absolute; bottom: 10%; left: 0; right: 0; color: white; font-weight: 700; font-size: clamp(14px, 3vw, 24px); }
+    #movement { font-weight: 700; color: #bd5e16; }
     #message {
       min-height: 30px;
       margin: 18px 0;
@@ -107,49 +109,46 @@
 <body>
   <main>
     <h1>🐭 Bắt chuột dưới cốc</h1>
-    <p class="subtitle">Chọn một chiếc cốc để bắt chuột. Nếu trượt, chuột sẽ chạy sang một ô bên cạnh!</p>
+    <p class="subtitle">Chọn bậc độ khó và bắt chuột trước khi hết lượt!</p>
     <section class="stats" aria-label="Thông tin ván chơi">
       <div class="stat">Lượt mở <strong id="moves">0</strong></div>
       <div class="stat">Số cốc <strong id="cup-count">0</strong></div>
       <div class="stat">Tối đa <strong id="max-moves">0</strong></div>
     </section>
     <div class="mode-picker">
-      <label for="cup-count-choice">Số cốc</label>
-      <select id="cup-count-choice">
-        <option value="3">3 cốc</option>
-        <option value="4">4 cốc</option>
-        <option value="5">5 cốc</option>
-        <option value="6" selected>6 cốc</option>
-        <option value="7">7 cốc</option>
-        <option value="8">8 cốc</option>
-        <option value="9">9 cốc</option>
-        <option value="10">10 cốc</option>
-        <option value="11">11 cốc</option>
-        <option value="12">12 cốc</option>
+      <label for="level">Bậc độ khó</label>
+      <select id="level">
+        <option value="1">1 — Chuột thường · 5 cốc · 4 lượt</option>
+        <option value="2">2 — Chuột thông minh · 8 cốc · 12 lượt</option>
+        <option value="3">3 — Chuột trùm · 8 cốc · 13 lượt</option>
+        <option value="4">4 — Chuột siêu trùm · 8 cốc · 14 lượt</option>
+        <option value="5">Đặc biệt — Chuột đào tẩu · 7 cốc · 10 lần săn</option>
       </select>
-      <label for="mode">Chế độ chuột</label>
-      <select id="mode">
-        <option value="random">Thường: chuột chạy ngẫu nhiên</option>
-        <option value="smart">Ronaldo hay Messi: chuột thông minh</option>
-      </select>
+      <p id="rules" class="hint"></p>
+      <p id="movement" role="status"></p>
     </div>
     <section id="cups" class="cups" aria-label="Các chiếc cốc"></section>
     <p id="message" role="status">Chuột đang trốn. Bạn chọn cốc nào?</p>
+    <button class="new-game" type="button" id="hunt" hidden>🔎 Máy săn — mở cốc tiếp theo</button>
     <button class="new-game" type="button" id="new-game">🔄 Chơi ván mới</button>
-    <p class="hint">Logic di chuyển của chuột được xử lý bằng Python.</p>
+    <p class="hint">Cốc được đánh số từ trái sang phải. Chuột chỉ di chuyển sau mỗi lần mở trượt.</p>
   </main>
   <script>
     const cupsElement = document.querySelector("#cups");
     const movesElement = document.querySelector("#moves");
     const cupCountElement = document.querySelector("#cup-count");
     const maxMovesElement = document.querySelector("#max-moves");
-    const modeElement = document.querySelector("#mode");
-    const cupCountChoiceElement = document.querySelector("#cup-count-choice");
+    const levelElement = document.querySelector("#level");
+    const rulesElement = document.querySelector("#rules");
+    const movementElement = document.querySelector("#movement");
     const messageElement = document.querySelector("#message");
     const newGameButton = document.querySelector("#new-game");
+    const huntButton = document.querySelector("#hunt");
+    let escapeState = null;
 
     let cupCount = 0;   // số cốc của ván hiện tại
     let epoch = 0;      // tăng mỗi khi bắt đầu ván mới, để bỏ qua phản hồi cũ
+    let finished = false;
     let busy = false;   // đang chờ server trả lời một lượt mở cốc
 
     function renderCups(count, openedCup = null, mousePosition = null, finished = false) {
@@ -159,11 +158,11 @@
         const button = document.createElement("button");
         button.className = "cup";
         button.type = "button";
-        button.setAttribute("aria-label", `Mở cốc ${index + 1}`);
+        button.setAttribute("aria-label", `${escapeState ? "Trốn tại" : "Mở"} cốc ${index + 1}`);
         if (index === openedCup) button.classList.add("opened");
         if (index === mousePosition) button.classList.add("show-mouse");
         button.disabled = finished;
-        button.innerHTML = '<span class="mouse" aria-hidden="true">🐭</span>';
+        button.innerHTML = `<span class="mouse" aria-hidden="true">🐭</span><span class="cup-number">${index + 1}</span>`;
         button.addEventListener("click", () => openCup(index));
         cupsElement.append(button);
       }
@@ -186,9 +185,65 @@
       return data;
     }
 
+    function setBusy(value) {
+      busy = value;
+      newGameButton.disabled = value;
+      levelElement.disabled = value;
+      cupsElement.querySelectorAll("button").forEach(button => {
+        button.disabled = value || finished;
+      });
+      if (escapeState) updateEscapeControls();
+    }
+
+    function updateEscapeControls() {
+      huntButton.hidden = !escapeState;
+      huntButton.disabled = busy || finished || escapeState?.escape_phase !== "hunt";
+      if (!escapeState) return;
+      cupsElement.querySelectorAll("button").forEach((button, index) => {
+        button.disabled = busy || finished || !(escapeState.escape_phase === "choose"
+          || escapeState.escape_phase === "move" && escapeState.legal_moves.includes(index));
+      });
+    }
+
+    function renderEscape(state) {
+      escapeState = state;
+      finished = state.finished;
+      movesElement.textContent = state.moves;
+      renderCups(state.cup_count, state.hunter_cup, state.mouse_position, state.finished);
+      movementElement.textContent = state.finished ? "Ván chơi đã kết thúc."
+        : state.escape_phase === "choose" ? "Chọn cốc để trốn ban đầu."
+        : state.escape_phase === "move" ? "Bạn phải chạy đúng 1 ô sang trái hoặc phải."
+        : "Bạn đã trốn. Bấm Máy săn để xem máy mở cốc nào.";
+      showMessage(state.message || "Bạn là chuột! Chọn chỗ trốn đầu tiên.", state.finished ? state.won ? "success" : "lose" : "");
+      updateEscapeControls();
+    }
+
+    async function escapeAction(action, cup) {
+      if (busy || finished) return;
+      setBusy(true);
+      try {
+        renderEscape(await readJson("/api/escape", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({action, cup})
+        }));
+      } catch (error) { showMessage(error.message, "error"); }
+      finally { setBusy(false); }
+    }
+
+    function showMovement(step) {
+      movementElement.textContent = step == null
+        ? "Ván chơi đã kết thúc."
+        : `Nếu lần mở tiếp theo trượt, chuột sẽ đi ${step} ô.`;
+    }
+
     async function openCup(cup) {
-      if (busy) return;
-      busy = true;
+      if (busy || finished) return;
+      if (escapeState) {
+        const phase = escapeState.escape_phase;
+        if (phase === "choose" || phase === "move") await escapeAction(phase, cup);
+        return;
+      }
+      setBusy(true);
       const myEpoch = epoch;
       try {
         const result = await readJson("/api/open", {
@@ -198,6 +253,8 @@
         });
         if (myEpoch !== epoch) return; // ván đã bị reset trong lúc chờ
         movesElement.textContent = result.moves;
+        finished = result.finished;
+        showMovement(result.next_step);
         if (result.finished) {
           renderCups(cupCount, result.opened_cup, result.mouse_position, true);
           showMessage(result.message, result.won ? "success" : "lose");
@@ -208,25 +265,42 @@
       } catch (error) {
         if (myEpoch === epoch) showMessage(error.message, "error");
       } finally {
-        busy = false;
+        if (myEpoch === epoch) setBusy(false);
       }
     }
 
     async function startNewGame() {
+      if (busy) return;
+      setBusy(true);
       epoch += 1;
       const myEpoch = epoch;
-      busy = false;
       try {
         const state = await readJson("/api/new-game", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
-            mode: modeElement.value,
-            cup_count: Number(cupCountChoiceElement.value)
+            level: Number(levelElement.value)
           })
         });
         if (myEpoch !== epoch) return;
         cupCount = state.cup_count;
+        finished = state.finished;
+        escapeState = state.mode === "escape" ? state : null;
+        huntButton.hidden = !escapeState;
+        movesElement.textContent = state.moves;
+        cupCountElement.textContent = state.cup_count;
+        maxMovesElement.textContent = state.max_moves;
+        if (escapeState) {
+          rulesElement.textContent = "Bạn làm chuột: chọn chỗ trốn trong 7 cốc và sống sót qua 10 lần săn để thắng. Sau mỗi lần thoát, bạn phải chạy 1 ô liền kề.";
+          renderEscape(state);
+          return;
+        }
+        showMovement(state.next_step);
+        rulesElement.textContent = state.level === 1
+          ? "Chuột đi ngẫu nhiên sang một ô liền kề. Ở đầu hàng, chuột quay vào trong."
+          : state.level >= 3
+            ? `Chuột né khi còn đường thoát. Sau mỗi lần trượt, đi theo chu kỳ ${state.movement_pattern.join(" → ")} ô; chọn một hướng và bật ngược khi chạm biên. Muốn thắng, hãy ép chuột về một vị trí.`
+            : "Chuột né khi còn đường thoát và đi đúng một ô liền kề sau mỗi lần trượt. Ở đầu hàng, chuột quay vào trong. Muốn thắng, hãy ép chuột về một vị trí.";
         movesElement.textContent = state.moves;
         cupCountElement.textContent = state.cup_count;
         maxMovesElement.textContent = state.max_moves;
@@ -234,12 +308,14 @@
         showMessage("Chuột đang trốn. Bạn chọn cốc nào?");
       } catch (error) {
         if (myEpoch === epoch) showMessage(error.message, "error");
+      } finally {
+        if (myEpoch === epoch) setBusy(false);
       }
     }
 
     newGameButton.addEventListener("click", startNewGame);
-    modeElement.addEventListener("change", startNewGame);
-    cupCountChoiceElement.addEventListener("change", startNewGame);
+    huntButton.addEventListener("click", () => escapeAction("hunt"));
+    levelElement.addEventListener("change", startNewGame);
     startNewGame();
   </script>
 </body>
